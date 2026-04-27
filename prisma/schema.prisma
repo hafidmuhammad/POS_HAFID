@@ -1,0 +1,163 @@
+// SembakoPos Database Schema
+// MySQL via Laragon
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ─── Users & Auth ────────────────────────────────
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  username  String   @unique @db.VarChar(50)
+  password  String   @db.VarChar(255)
+  role      Role     @default(kasir)
+  phone     String?  @db.VarChar(20)
+  status    UserStatus @default(aktif)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders    Order[]  @relation("CashierOrders")
+  stockMovements StockMovement[]
+
+  @@map("users")
+}
+
+enum Role {
+  superadmin
+  manager
+  kasir
+  gudang
+  owner
+}
+
+enum UserStatus {
+  aktif
+  nonaktif
+}
+
+// ─── Products ────────────────────────────────────
+model Product {
+  id        Int      @id @default(autoincrement())
+  sku       String   @unique @db.VarChar(20)
+  name      String   @db.VarChar(100)
+  emoji     String   @db.VarChar(10)
+  category  String   @db.VarChar(50)
+  unit      String   @db.VarChar(20)
+  price     Int      @default(0)
+  stock     Int      @default(0)
+  bulkSack  Int      @default(0)
+  bulkKg    Int      @default(0)
+  minStock  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+
+  @@map("products")
+}
+
+// ─── Orders ──────────────────────────────────────
+model Order {
+  id        Int      @id @default(autoincrement())
+  orderNo   String   @unique @db.VarChar(20) // e.g. #ORD-0001
+  customer  String   @db.VarChar(100)
+  type      OrderType
+  method    PaymentMethod
+  subtotal  Int      @default(0)
+  discount  Int      @default(0)
+  tax       Int      @default(0)
+  shipping  Int      @default(0)
+  total     Int      @default(0)
+  status    OrderStatus @default(pending)
+  phone     String?  @db.VarChar(20)
+  address   String?  @db.Text
+  note      String?  @db.Text
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cashierId Int?
+  cashier   User?    @relation("CashierOrders", fields: [cashierId], references: [id])
+
+  items     OrderItem[]
+
+  @@index([status])
+  @@index([date])
+  @@map("orders")
+}
+
+enum OrderType {
+  Tunai
+  Online
+  StafOffline @map("Staf Offline")
+}
+
+enum PaymentMethod {
+  Tunai
+  Transfer
+  QRIS
+  Debit
+  Kredit
+  COD
+}
+
+enum OrderStatus {
+  paid
+  pending
+  process
+  cancel
+}
+
+// ─── Order Items ─────────────────────────────────
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  productId Int?
+  name      String  @db.VarChar(100)
+  qty       Int
+  price     Int
+  subtotal  Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ─── Stock Movements ─────────────────────────────
+model StockMovement {
+  id          Int       @id @default(autoincrement())
+  productId   Int
+  type        MovementType
+  qtyBefore   Int
+  qtyChange   Int
+  qtyAfter    Int
+  unit        String    @db.VarChar(20)
+  note        String?   @db.Text
+  date        DateTime  @default(now())
+  userId      Int?
+
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([date])
+  @@map("stock_movements")
+}
+
+enum MovementType {
+  masuk
+  keluar
+  konversi
+  opname
+}
